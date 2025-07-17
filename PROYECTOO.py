@@ -1,0 +1,73 @@
+from grovepi import *
+from grove_rgb_lcd import *
+from time import sleep
+from math import isnan
+import mysql.connector
+
+# Configuración del sensor
+dht_sensor_port = 7
+dht_sensor_type = 0 # DHT11
+setRGB(0, 255, 0)
+
+# Conexión a la base de datos
+try:
+conn = mysql.connector.connect(
+host="localhost",
+user="root",
+password="", # Déjalo vacío si no tiene contraseña
+database="LECTURAS" # Nombre de la base de datos
+)
+cursor = conn.cursor()
+except mysql.connector.Error as e:
+print("❌ Error al conectar con la base de datos:", e)
+exit(1)
+
+# Bucle principal
+try:
+while True:
+try:
+# Leer del sensor
+temp_hum = dht(dht_sensor_port, dht_sensor_type)
+if isinstance(temp_hum, list) and len(temp_hum) == 2:
+temp, hum = temp_hum
+
+if isnan(temp) or isnan(hum):
+print("⚠️ Lectura inválida: NaN")
+setText_norefresh("Esperado...\nSensor sin datos")
+else:
+print(f"✅ Temp = {temp} °C\tHumedad = {hum} %")
+setText_norefresh("Temp: {:.1f}C\nHumidity: {:.1f}%".format(temp, hum))
+
+# Insertar en la tabla DATOS_RP
+sql = "INSERT INTO DATOS_RP (temperatura, humedad) VALUES (%s, %s)"
+try:
+cursor.execute(sql, (temp, hum))
+conn.commit()
+except mysql.connector.Error as e:
+print("❌ Error al guardar en la BD:", e)
+else:
+print("⚠️ Lectura corrupta del sensor")
+setText_norefresh("Sensor con error")
+
+except (IOError, TypeError) as e:
+print("⚠️ Error del sensor:", e)
+setText("Lectura\ninvalida")
+sleep(2)
+
+except KeyboardInterrupt:
+print("🛑 Programa interrumpido por el usuario.")
+setText("Detenido\npor usuario")
+break
+
+sleep(5)
+
+finally:
+try:
+cursor.close()
+except:
+pass
+
+try:
+conn.close()
+except:
+pass

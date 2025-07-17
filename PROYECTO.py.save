@@ -1,0 +1,68 @@
+'from grovepi import*
+from grove_rgb_lcd import*
+from time import sleep
+from math import isnan
+import MySQLdb
+
+dht_sensor_port = 7
+dht_sensor_type = 0
+setRGB(0,255,0)
+
+try:
+    conn = MySQLdb.connect(db="diego",
+                       host="localhost",
+                       user="Diego2_user",
+                       passwd="1234")
+
+    cursor = conn.cursor()
+except Exception as e:
+    print("Error en DB:", e)
+    exit(1)
+
+try:
+    while True:
+        try:
+            temp_hum = dht(dht_sensor_port, dht_sensor_type)
+            if isinstance(temp_hum, list) and len(temp_hum) == 2:
+                temp = temp_hum[0]
+                hum = temp_hum[1]
+            
+                if isnan(temp) or isnan(hum):
+                    print("Lectura invalida: NaN")
+                    setText_norefresh("Esperado...\nSensor sin datos")
+                else:
+                    print("Temperature= ", temp, "C\tHumidity= ", hum, "%")
+                    setText_norefresh("Temp: {:.1f}C\nHumidity: {:.1f}%".format(temp,hum))
+                    query = "INSERT INTO datos (temperatura, humedad) VALUES (%s,%s)"
+                
+                    try:
+                        cursor.execute(query, (temp,hum))
+                        conn.commit()
+                    except Exception as e:
+                        print("Error al guardar en BD:", e)
+            else:
+                print("Lectura corrupta del sensor")
+                setText_norefresh("Sensor con error")
+                          
+        except (IOError,TypeError) as e:
+            print("Error:", str(e))
+            setText("")
+        except KeyboardInterrupt:
+            print("Programa suspendido por el usuario.")
+            setText("")
+            break
+        
+        
+            sleep(2)
+        
+finally: 
+    try:
+        cursor.close()
+    except:
+        pass
+    
+    try:
+        conn.close()
+    except:
+        pass
+
